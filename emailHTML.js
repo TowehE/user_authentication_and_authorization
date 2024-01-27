@@ -40,6 +40,7 @@ const generateDynamicEmail = (fullName, link) => {
                     <tr>
               <td valign="middle" style="padding: 2em 0 4em 0;">
                 <table>
+            
                     <tr>
                         <td>
                             <div style="padding: 0 2.5em; text-align: center;">

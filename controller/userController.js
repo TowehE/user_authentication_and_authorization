@@ -17,7 +17,7 @@ const capitalizeFirstLetter = (str) => {
 
 
 //Function to register a new user
-const signUp = async (req, res) => {
+exports.signUp = async (req, res) => {
     try {
         const { error } = validateUser(req.body);
         if (error) {
@@ -94,7 +94,7 @@ const signUp = async (req, res) => {
 
 
 //Function to verify a new user with a link
-const verify = async (req, res) => {
+exports.verify = async (req, res) => {
     try {
         const id = req.params.id;
         const token = req.params.token;
@@ -137,7 +137,7 @@ const verify = async (req, res) => {
 
 
 //Function to login a verified user
-const logIn = async (req, res) => {
+exports.logIn = async (req, res) => {
     try {
         const { error } = validateUserLogin(req.body);
         if (error) {
@@ -185,7 +185,7 @@ const logIn = async (req, res) => {
 };
 
 //Function for the user incase password is forgotten
-const forgotPassword = async (req, res) => {
+exports.forgotPassword = async (req, res) => {
     try {
         const checkUser = await userModel.findOne({ email: req.body.email });
         if (!checkUser) {
@@ -215,7 +215,7 @@ const forgotPassword = async (req, res) => {
 
 
 //Funtion to send the reset Password page to the server
-const resetPasswordPage = async (req, res) => {
+exports.resetPasswordPage = async (req, res) => {
     try {
         const userId = req.params.userId;
         const resetPage = resetHTML(userId);
@@ -232,7 +232,7 @@ const resetPasswordPage = async (req, res) => {
 
 
 //Function to reset the user password
-const resetPassword = async (req, res) => {
+exports.resetPassword = async (req, res) => {
     try {
         const userId = req.params.userId;
         const password = req.body.password;
@@ -259,32 +259,61 @@ const resetPassword = async (req, res) => {
 
 
 //Function to signOut a user
-const signOut = async (req, res) => {
-    try {
-        const userId = req.params.userId
-        const user = await userModel.findById(userId)
+// exports.signOut = async (req, res) => {
+//     try {
+//         const userId = req.params.userId
+//         const user = await userModel.findById(userId)
 
-        user.token = null;
-        await user.save();
-        res.status(201).json({
-            message: `user has been signed out successfully`
-        })
-    } catch (error) {
-        return res.status(500).json({
-            message: error.message,
+//         user.token = null;
+//         await user.save();
+//         res.status(201).json({
+//             message: `user has been signed out successfully`
+//         })
+//     } catch (error) {
+//         return res.status(500).json({
+//             message: error.message,
+//         })
+//     }
+// };
+
+//sign out function
+exports.signOut = async(req,res) =>{
+    try{
+        //get the user's id from the request user payload
+const {userId} = req.user
+
+        const hasAuthorization = req.headers.authorization
+    if(!hasAuthorization){
+        return res.status(401).json({
+            message: 'Invalid authorization',
         })
     }
-};
+
+const token = hasAuthorization.split(' ')[1]
+
+const user = await studentModel.findById(userId)
+
+//check if theuser is not exisiting
+if(!hasAuthorization){
+    return res.status(401).json({
+        message:"User not found",
+    })
+}
+
+//Blacklist the token
+ user.blacklist.push(token)
+
+ await user.save()
+
+ //return a respponse
+ res.status(200).json({
+    message:"User logged out successfully"
+ })
 
 
-
-module.exports = {
-    signUp,
-    verify,
-    logIn,
-    forgotPassword,
-    resetPasswordPage,
-    resetPassword,
-    signOut,
-
+    }catch(error){
+        res.status(404).json({
+            message: error.message
+        })
+}
 }
