@@ -2,7 +2,7 @@ const userModel = require('../models/userModel');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { validateUser, validateUserLogin, } = require('../helpers/validator');
-const {sendEmail} = require('../email');
+const { sendEmail } = require('../email');
 const { generateDynamicEmail } = require('../emailHTML');
 const { resetFunc } = require('../forgotPassword');
 const resetHTML = require('../resetHTML');
@@ -32,7 +32,7 @@ exports.signUp = async (req, res) => {
                     message: 'Email already exists',
                 })
             }
-           
+
             const userNameExists = await userModel.findOne({ userName: userName.toLowerCase() });
             if (userNameExists) {
                 return res.status(403).json({
@@ -43,7 +43,7 @@ exports.signUp = async (req, res) => {
             const hashpassword = bcrypt.hashSync(password, salt);
             const user = await new userModel({
                 firstName: capitalizeFirstLetter(firstName).trim(),
-                lastName:capitalizeFirstLetter(lastName).trim(),
+                lastName: capitalizeFirstLetter(lastName).trim(),
                 userName: capitalizeFirstLetter(userName).trim(),
                 phoneNumber: phoneNumber,
                 email: email.toLowerCase(),
@@ -58,17 +58,17 @@ exports.signUp = async (req, res) => {
             const first = user.firstName.slice(0, 1).toUpperCase();
             const firstN = user.firstName.slice(1).toLowerCase();
             const surn = user.lastName.slice(0, 1).toUpperCase();
-        
+
             const fullName = first + firstN + " " + surn;
 
             const token = jwt.sign({
                 firstName,
                 lastName,
                 email,
-            }, process.env.secret, { expiresIn: "120s" });
+            }, process.env.secret, { expiresIn: "60s" });
             user.token = token;
             const subject = 'Email Verification'
-            //jwt.verify(token, process.env.secret)
+
             const link = `${req.protocol}://${req.get('host')}/api/v1/verify/${user.id}/${user.token}`
             const html = generateDynamicEmail(fullName, link)
             sendEmail({
@@ -77,7 +77,7 @@ exports.signUp = async (req, res) => {
                 subject
             })
 
-           
+
             await user.save()
             return res.status(200).json({
                 message: 'User profile created successfully',
@@ -99,41 +99,45 @@ exports.verify = async (req, res) => {
         const id = req.params.id;
         const token = req.params.token;
         const user = await userModel.findById(id);
+        const jsonStuff = jwt.verify(token, process.env.SECRET);
 
-        // Verify the token
-        jwt.verify(token, process.env.secret);
+        if (jsonStuff) {
+            // Update the user if verification is successful
+            const updatedUser = await userModel.findByIdAndUpdate(id, { isVerified: true }, { new: true });
 
-        // Update the user if verification is successful
-        const updatedUser = await userModel.findByIdAndUpdate(id, { isVerified: true }, { new: true });
-
-        if (updatedUser.isVerified === true) {
-            return res.status(200).send("You have been successfully verified. Kindly visit the login page.");
-        }
-
-    } catch (error) {
-        if (error instanceof jwt.JsonWebTokenError) {
-            // Handle token expiration
-            const id = req.params.id;
-            const updatedUser = await userModel.findById(id);
-            const { firstName, lastName, email } = updatedUser;
-            const newtoken = jwt.sign({ email, firstName, lastName }, process.env.secret, { expiresIn: "120s" });
-            updatedUser.token = newtoken;
-            updatedUser.save();
-
-            const link = `${req.protocol}://${req.get('host')}/api/v1/verify/${id}/${updatedUser.token}`;
-            sendEmail({
-                email: email,
-                html: generateDynamicEmail(firstName, link),
-                subject: "RE-VERIFY YOUR ACCOUNT"
-            });
-            return res.status(401).send("This link is expired. Kindly check your email for another email to verify.");
+            if (updatedUser.isVerified === true) {
+                return res.status(200).send(
+                    "<h3>You have been successfully verified. Kindly visit the login page.</h3><script>setTimeout(() => { window.location.href = '/api/v1/login'; }, 2000);</script>");
+            }
         } else {
-            return res.status(500).json({
-                message: "Internal server error: " + error.message,
-            });
+            jwt.verify(token, process.env.SECRET, async (error) => {
+                if (error instanceof jwt.JsonWebTokenError) {
+                    // Handle token expiration
+                    const id = req.params.id;
+                    const updatedUser = await userModel.findById(id);
+                    //const { firstName, lastName, email } = updatedUser;
+                    const newtoken = jwt.sign({ email: updatedUser.email, firstName: updatedUser.firstName, lastName: updatedUser.lastName }, process.env.SECRET, { expiresIn: "300s" });
+                    updatedUser.token = newtoken;
+                    updatedUser.save();
+
+                    const link = `${req.protocol}://${req.get('host')}/api/v1/verify/${id}/${updatedUser.token}`;
+                    sendEmail({
+                        email: updatedUser.email,
+                        html: generateDynamicEmail(updatedUser.firstName, link),
+                        subject: "RE-VERIFY YOUR ACCOUNT"
+                    });
+                    res.status(401).send("<h3>This link is expired. Kindly check your email for another email to verify.</h3><script>setTimeout(() => { window.location.href = '/api/v1/login'; }, 2000);</script>");
+                    return;
+                }
+            })
         }
+    } catch (error) {
+        return res.status(500).json({
+            message: "Internal server error: " + error.message,
+        })
     }
-};
+
+}
 
 
 //Function to login a verified user
@@ -143,7 +147,7 @@ exports.logIn = async (req, res) => {
         if (error) {
             return res.status(500).json({
                 message: error.details[0].message
-            })
+            }) 
         } else {
             const { email, password } = req.body;
             const checkEmail = await userModel.findOne({ email: email.toLowerCase() });
@@ -250,7 +254,7 @@ exports.resetPassword = async (req, res) => {
         return res.status(200).json({
             message: "Password reset successfully",
         });
-   } catch (error) {
+    } catch (error) {
         return res.status(500).json({
             message: error.message,
         })
@@ -277,43 +281,41 @@ exports.resetPassword = async (req, res) => {
 // };
 
 //sign out function
-exports.signOut = async(req,res) =>{
-    try{
+exports.signOut = async (req, res) => {
+    try {
         //get the user's id from the request user payload
-const {userId} = req.user
+        const { userId } = req.user
 
         const hasAuthorization = req.headers.authorization
-    if(!hasAuthorization){
-        return res.status(401).json({
-            message: 'Invalid authorization',
+        if (!hasAuthorization) {
+            return res.status(401).json({
+                message: 'Invalid authorization',
+            })
+        }
+
+        const token = hasAuthorization.split(' ')[1]
+        const user = await studentModel.findById(userId)
+
+        //check if theuser is not exisiting
+        if (!hasAuthorization) {
+            return res.status(401).json({
+                message: "User not found",
+            })
+        }
+
+        //Blacklist the token
+        user.blacklist.push(token)
+        await user.save()
+
+        //return a respponse
+        res.status(200).json({
+            message: "User logged out successfully"
         })
-    }
-
-const token = hasAuthorization.split(' ')[1]
-
-const user = await studentModel.findById(userId)
-
-//check if theuser is not exisiting
-if(!hasAuthorization){
-    return res.status(401).json({
-        message:"User not found",
-    })
-}
-
-//Blacklist the token
- user.blacklist.push(token)
-
- await user.save()
-
- //return a respponse
- res.status(200).json({
-    message:"User logged out successfully"
- })
 
 
-    }catch(error){
+    } catch (error) {
         res.status(404).json({
             message: error.message
         })
-}
+    }
 }

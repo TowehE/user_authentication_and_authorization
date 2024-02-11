@@ -11,7 +11,7 @@ const port = process.env.PORT;
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.json());
 app.get('/api/v1', (req, res) => {
-    res.send("Welcome to Eben Designz Onboarding site");
+    res.send("Welcome to my Onboarding API");
 })
 app.use('/api/v1', router);
 
